@@ -55,7 +55,7 @@ module.exports = {
       accounts: [process.env.PRIVATE_KEY1, process.env.PRIVATE_KEY2],
     },
     polygonMumbai: {
-      url: process.env.PROVIDER_MUMBAi,
+      url: process.env.PROVIDER_MUMBAI,
       chainID: 80001,
       accounts: [process.env.PRIVATE_KEY1, process.env.PRIVATE_KEY2],
     },
