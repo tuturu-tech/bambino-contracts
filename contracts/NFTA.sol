@@ -6,7 +6,19 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
-contract Azuki is ERC721A {
+contract NFTA is ERC721A, Ownable, ReentrancyGuard {
+    uint256 public maxSupply;
+    uint256 public giveawayReserved;
+    uint256 public teamReserved;
+    uint256 public maxBuyWL;
+    uint256 public maxBuyPS;
+    uint256 public priceWL;
+    uint256 public pricePS;
+    uint256 public locked;
+
+    mapping(address => uint256) WLMinted;
+    mapping(address => uint256) PSMinted;
+
     constructor() ERC721A("Azuki", "AZUKI", 5) {}
 
     function mint(uint256 quantity) external payable {
