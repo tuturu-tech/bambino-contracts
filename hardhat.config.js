@@ -1,6 +1,6 @@
 require("@nomiclabs/hardhat-waffle");
 require("solidity-coverage");
-require("hardhat-gas-reporter");
+//require("hardhat-gas-reporter");
 require("dotenv").config();
 
 /**
@@ -81,7 +81,7 @@ module.exports = {
   gasReporter: {
     coinmarketcap: "7c6dba17-dc6a-42db-996b-9587eaffc8e8",
     token: "ETH",
-    gasPrice: 300,
+    gasPrice: 200,
     /* token: "BNB",
     gasPrice: 10,
     token: "MATIC",

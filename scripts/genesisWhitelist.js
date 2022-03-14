@@ -1,0 +1,7 @@
+exports.genesisWhitelist = {
+  1: [
+    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "0xaaC1D92E356144c6b3032297Df02897F273C898c",
+  ],
+  2: ["0x70997970C51812dc3A010C7d01b50e0d17dc79C8"],
+};
