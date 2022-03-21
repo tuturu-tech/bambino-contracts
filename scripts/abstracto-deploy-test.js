@@ -1,11 +1,16 @@
 const hre = require("hardhat");
 
 async function main() {
-  const [owner, addr1, addr2] = await ethers.getSigners();
-  const Abstracto = await hre.ethers.getContractFactory("Abstracto");
-  const abstracto = await Abstracto.deploy("test", owner.address);
+  const [deployer] = await ethers.getSigners();
 
-  console.log("Abstracto deployed to:", babyboss.address);
+  console.log("Deploying contracts with the account:", deployer.address);
+
+  console.log("Account balance:", (await deployer.getBalance()).toString());
+
+  const Abstracto = await hre.ethers.getContractFactory("Abstracto");
+  const abstracto = await Abstracto.deploy("test", deployer.address);
+
+  console.log("Abstracto deployed to:", abstracto.address);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

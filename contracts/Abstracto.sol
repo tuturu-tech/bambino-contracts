@@ -56,6 +56,12 @@ contract Abstracto is ERC721A, Ownable, ReentrancyGuard {
         return _getPrice();
     }
 
+    function getTimeLeft() public view returns (uint256) {
+        uint256 timeLeft = decrementInterval -
+            ((block.timestamp - auctionStart) % decrementInterval);
+        return timeLeft;
+    }
+
     function tokenURI(uint256 tokenId)
         public
         view
