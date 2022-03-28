@@ -22,7 +22,7 @@ contract BabyBoss is ERC721A, Ownable, ReentrancyGuard {
         PUBLIC
     }
 
-    Period saleState;
+    Period public saleState;
 
     // For signatures
     address private _signerAddress = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266; // TESTING ADDRESS
@@ -30,6 +30,7 @@ contract BabyBoss is ERC721A, Ownable, ReentrancyGuard {
     uint256 public maxSupply = 3999;
     uint256 public reserved = 300;
     uint256 public maxMint = 2; // CHANGE
+    uint256 public priceGenesis = 0.0001 ether; // CHANGE
     uint256 public priceWL = 0.0001 ether; // CHANGE
     uint256 public pricePS = 0.001 ether; //CHANGE
     uint256 public revealTime;
@@ -40,6 +41,7 @@ contract BabyBoss is ERC721A, Ownable, ReentrancyGuard {
     address public withdrawalAddress;
 
     mapping(address => uint256) minted;
+    mapping(address => uint256) genesisMinted;
     mapping(address => uint256) wlMinted;
     mapping(address => bool) team;
 
@@ -80,19 +82,38 @@ contract BabyBoss is ERC721A, Ownable, ReentrancyGuard {
         callerIsUser
         nonReentrant
         verifyPrice(quantity, priceWL)
+        onlyPeriod(Period.PRESALE)
         verifySignature(_signature, saleState, limit)
         supplyLimit(quantity, reserved)
     {
-        require(
-            saleState == Period.GENESIS || saleState == Period.PRESALE,
-            "WRONG_PERIOD"
-        );
         require(
             wlMinted[msg.sender] + quantity <= limit,
             "MAX_MINT: AMOUNT_TOO_HIGH"
         );
 
         wlMinted[msg.sender] += quantity;
+        _safeMint(msg.sender, quantity);
+    }
+
+    function genesisMint(
+        bytes calldata _signature,
+        uint256 quantity,
+        uint256 limit
+    )
+        external
+        payable
+        callerIsUser
+        nonReentrant
+        verifyPrice(quantity, priceGenesis)
+        onlyPeriod(Period.GENESIS)
+        verifySignature(_signature, saleState, limit)
+        supplyLimit(quantity, reserved)
+    {
+        require(
+            genesisMinted[msg.sender] + quantity <= limit,
+            "MAX_MINT: AMOUNT_TOO_HIGH"
+        );
+        genesisMinted[msg.sender] += quantity;
         _safeMint(msg.sender, quantity);
     }
 
@@ -103,7 +124,7 @@ contract BabyBoss is ERC721A, Ownable, ReentrancyGuard {
         view
         virtual
         override
-        returns (string memory uri)
+        returns (string memory)
     {
         require(
             _exists(tokenId),
@@ -111,27 +132,24 @@ contract BabyBoss is ERC721A, Ownable, ReentrancyGuard {
         );
 
         if (block.timestamp >= revealTime) {
-            bytes(baseURI).length > 0
-                ? string(abi.encodePacked(baseURI, tokenId.toString(), ".json"))
-                : unrevealedURI;
+            return
+                bytes(baseURI).length > 0
+                    ? string(
+                        abi.encodePacked(baseURI, tokenId.toString(), ".json")
+                    )
+                    : unrevealedURI;
         } else {
             return unrevealedURI;
         }
     }
 
-    // TESTING FUNCTION - REMOVE IN PRODUCTION
-    function isValidSignature(bytes calldata _signature, uint256 _limit)
-        public
-        view
-        returns (address)
-    {
-        bytes32 msgHash = keccak256(
-            abi.encode(address(this), _limit, msg.sender)
-        );
-        return msgHash.toEthSignedMessageHash().recover(_signature);
+    function isTeam(address _user) public view onlyOwner returns (bool) {
+        return team[_user];
     }
 
-    // --------- INTERNAL ----------
+    function getSignerAddress() public view onlyOwner returns (address) {
+        return _signerAddress;
+    }
 
     // --------- RESTRICTED -----------
 
@@ -160,6 +178,18 @@ contract BabyBoss is ERC721A, Ownable, ReentrancyGuard {
         for (uint256 i; i < users.length; i++) {
             _safeMint(users[i], quantity);
         }
+    }
+
+    function setPricePS(uint256 _price) external onlyOwner {
+        pricePS = _price;
+    }
+
+    function setPriceWL(uint256 _price) external onlyOwner {
+        priceWL = _price;
+    }
+
+    function setPriceGenesis(uint256 _price) external onlyOwner {
+        priceGenesis = _price;
     }
 
     function setTeam(address _user, bool _state) external onlyOwner {

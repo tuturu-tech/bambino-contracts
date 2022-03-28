@@ -132,9 +132,12 @@ contract NFTA is ERC721A, Ownable, ReentrancyGuard {
         );
 
         if (block.timestamp >= revealTime) {
-            bytes(baseURI).length > 0
-                ? string(abi.encodePacked(baseURI, tokenId.toString(), ".json"))
-                : unrevealedURI;
+            return
+                bytes(baseURI).length > 0
+                    ? string(
+                        abi.encodePacked(baseURI, tokenId.toString(), ".json")
+                    )
+                    : unrevealedURI;
         } else {
             return unrevealedURI;
         }

@@ -6,7 +6,7 @@ const {
   getBlockTimestamp,
   jumpToTime,
   advanceTime,
-} = require("../scripts/utility.js");
+} = require("../scripts/utilities/utility.js");
 
 const BN = BigNumber.from;
 var time = centerTime();
@@ -38,7 +38,7 @@ function getRandomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-describe.only("Deploy", function () {
+describe("Deploy", function () {
   let nft, owner, addr1, addr2;
   let decrementAmount,
     auctionStart,
@@ -152,7 +152,7 @@ describe.only("Deploy", function () {
     expect(await nft.ownerOf(9)).to.equal(addr1.address);
   });
 
-  it.only("Should withdraw properly", async function () {
+  it("Should withdraw properly", async function () {
     await nft.startAuction();
     let price = await nft.getCurrentPrice();
     await nft.connect(addr1).mint(10, { value: price.mul(10) });
