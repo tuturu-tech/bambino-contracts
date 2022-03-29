@@ -37,60 +37,80 @@ const signWhitelist = async (
 async function main() {
   const [owner] = await ethers.getSigners();
 
-  const contractAddress = "0x55C93c194A788aBb8832C2Cbbe7832f646F4133b";
+  const contractAddress = "0x41978f599F793Bd4f697E3eAD1f5FB62BC5BcFC9";
 
   console.log("signer address:", owner.address);
 
-  const genesisSignatures = await promiseAllObj(
-    objectMap(genesisWhitelist, async (mintLimit, accounts) => {
-      return await promiseAllObj(
-        Object.assign(
-          {},
-          ...accounts.map((address) => ({
-            [address.toLowerCase()]: signWhitelist(
-              owner,
-              contractAddress,
-              address,
-              mintLimit,
-              1
-            ),
-          }))
-        )
-      );
-    })
-  );
+  let limit = {};
 
-  const presaleSignatures = await promiseAllObj(
-    objectMap(presaleWhitelist, async (mintLimit, accounts) => {
-      return await promiseAllObj(
-        Object.assign(
-          {},
-          ...accounts.map((address) => ({
-            [address.toLowerCase()]: signWhitelist(
-              owner,
-              contractAddress,
-              address,
-              mintLimit,
-              2
-            ),
-          }))
-        )
+  for (const [key, value] of Object.entries(genesisWhitelist)) {
+    const swapped = value.map((address) => [address.toLowerCase(), key]);
+    Object.assign(limit, Object.fromEntries(swapped));
+  }
+
+  let sig = {};
+
+  for (const [key, value] of Object.entries(genesisWhitelist)) {
+    const swapped = value.map((address) => [address.toLowerCase(), key]);
+    for (let i = 0; i < swapped.length; i++) {
+      swapped[i][1] = await signWhitelist(
+        owner,
+        contractAddress,
+        swapped[i][0],
+        swapped[i][1],
+        1
       );
-    })
+    }
+    Object.assign(sig, Object.fromEntries(swapped));
+  }
+
+  console.log("writing to file");
+  fs.writeFileSync(
+    "genesisLimit.js",
+    "export const genesisLimit = " + JSON.stringify(limit, null, 2),
+    console.log
   );
 
   console.log("writing to file");
   fs.writeFileSync(
     "genesisSignatures.js",
-    "export const genesisWhitelist = " +
-      JSON.stringify(genesisSignatures, null, 2),
+    "export const genesisSig = " + JSON.stringify(sig, null, 2),
     console.log
   );
 
+  let limitWl = {};
+  let sigWl = {};
+
+  for (const [key, value] of Object.entries(presaleWhitelist)) {
+    const swapped = value.map((address) => [address.toLowerCase(), key]);
+    Object.assign(limitWl, Object.fromEntries(swapped));
+  }
+
+  for (const [key, value] of Object.entries(presaleWhitelist)) {
+    const swapped = value.map((address) => [address.toLowerCase(), key]);
+    for (let i = 0; i < swapped.length; i++) {
+      swapped[i][1] = await signWhitelist(
+        owner,
+        contractAddress,
+        swapped[i][0],
+        swapped[i][1],
+        2
+      );
+    }
+    Object.assign(sigWl, Object.fromEntries(swapped));
+  }
+
+  console.log("writing to file");
+  fs.writeFileSync(
+    "presaleLimit.js",
+    "export const whitelistLimit = " + JSON.stringify(limitWl, null, 2),
+    console.log
+  );
+
+  console.log("writing to file");
   fs.writeFileSync(
     "presaleSignatures.js",
-    "export const presaleWhitelist = " +
-      JSON.stringify(presaleSignatures, null, 2),
+    "export const whitelistSig = " + JSON.stringify(sigWl, null, 2),
     console.log
   );
 }

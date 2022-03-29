@@ -38,6 +38,7 @@ contract BabyBoss is ERC721A, Ownable, ReentrancyGuard {
 
     string public baseURI;
     string public unrevealedURI;
+    string public collabURI;
     address public withdrawalAddress;
 
     mapping(address => uint256) minted;
@@ -131,6 +132,15 @@ contract BabyBoss is ERC721A, Ownable, ReentrancyGuard {
             "ERC721Metadata: URI query for nonexistent token"
         );
 
+        if (tokenId < 13) {
+            return
+                bytes(collabURI).length > 0
+                    ? string(
+                        abi.encodePacked(collabURI, tokenId.toString(), ".json")
+                    )
+                    : unrevealedURI;
+        }
+
         if (block.timestamp >= revealTime) {
             return
                 bytes(baseURI).length > 0
@@ -212,6 +222,10 @@ contract BabyBoss is ERC721A, Ownable, ReentrancyGuard {
 
     function setUnrevealedURI(string memory _uri) external onlyOwner {
         unrevealedURI = _uri;
+    }
+
+    function setCollabURI(string memory _uri) external onlyOwner {
+        collabURI = _uri;
     }
 
     function setRevealTime(uint256 _revealTime) external onlyOwner {
