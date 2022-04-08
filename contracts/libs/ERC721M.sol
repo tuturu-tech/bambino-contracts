@@ -22,7 +22,7 @@ error TransferFromIncorrectOwner();
 error TransferToNonERC721ReceiverImplementer();
 error TransferToZeroAddress();
 
-abstract contract ERC721MT {
+abstract contract ERC721M {
     event Transfer(
         address indexed from,
         address indexed to,
@@ -41,17 +41,18 @@ abstract contract ERC721MT {
 
     struct TokenData {
         address owner;
-        uint40 stakeStart;
-        uint40 lastRewarded;
+        uint40 lastTransfer;
+        uint24 ownerCount;
         bool staked;
+        bool mintAndStaked;
         bool nextTokenDataSet;
-        uint256 drawsAvailable;
     }
 
     struct UserData {
         uint40 balance;
-        uint40 numRewards;
         uint40 numMinted;
+        uint40 stakeStart;
+        uint40 lastClaimed;
         uint40 numStaked;
     }
 
@@ -62,7 +63,6 @@ abstract contract ERC721MT {
     mapping(address => mapping(address => bool)) public isApprovedForAll;
 
     uint256 public totalSupply;
-    uint256 public cycleLength;
 
     uint256 immutable startingIndex;
     uint256 immutable collectionSize;
@@ -79,36 +79,34 @@ abstract contract ERC721MT {
         string memory symbol_,
         uint256 startingIndex_,
         uint256 collectionSize_,
-        uint256 maxPerWallet_,
-        uint256 cycleLength_
+        uint256 maxPerWallet_
     ) {
         name = name_;
         symbol = symbol_;
         collectionSize = collectionSize_;
         maxPerWallet = maxPerWallet_;
         startingIndex = startingIndex_;
-        cycleLength = cycleLength_;
     }
 
     /* ------------- External ------------- */
 
     function stake(uint256[] calldata tokenIds) external payable {
-        UserData memory userData = _userData[msg.sender];
+        UserData memory userData = _claimReward();
         for (uint256 i; i < tokenIds.length; ++i)
             userData = _stake(msg.sender, tokenIds[i], userData);
         _userData[msg.sender] = userData;
     }
 
     function unstake(uint256[] calldata tokenIds) external payable {
-        UserData memory userData = _userData[msg.sender];
+        UserData memory userData = _claimReward();
         for (uint256 i; i < tokenIds.length; ++i)
             userData = _unstake(msg.sender, tokenIds[i], userData);
         _userData[msg.sender] = userData;
     }
 
-    /* function claimReward() external payable {
+    function claimReward() external payable {
         _userData[msg.sender] = _claimReward();
-    } */
+    }
 
     /* ------------- Private ------------- */
 
@@ -125,13 +123,18 @@ abstract contract ERC721MT {
 
         delete getApproved[tokenId];
 
+        // hook, used for reading DNA, updating role balances,
+        // (uint256 userDataX, uint256 tokenDataX) = _beforeStakeDataTransform(tokenId, userData, tokenData);
+
         tokenData.staked = true;
-        tokenData.stakeStart = uint40(block.timestamp);
 
         unchecked {
             userData.balance--;
             userData.numStaked++;
         }
+
+        if (userData.numStaked == 0)
+            userData.stakeStart = uint40(block.timestamp);
 
         _tokenData[tokenId] = tokenData;
 
@@ -150,29 +153,43 @@ abstract contract ERC721MT {
         if (tokenData.owner != to) revert IncorrectOwner();
         if (!tokenData.staked) revert TokenIdUnstaked();
 
-        // I can check reward conditions and draws in a function
-        /* uint256 stakedDelta = block.timestamp - tokenData.stakeStart;
-        uint256 rewardedDelta = block.timestamp - tokenData.lastRewarded;
-        if (stakedDelta / cycleLength > 3 && rewardedDelta < cycleLength * 3 ) {
-            // Mint a 
-        } */
+        // (uint256 userDataX, uint256 tokenDataX) = _beforeUnstakeDataTransform(tokenId, userData, tokenData);
+        // (userData, tokenData) = applySafeDataTransform(userData, tokenData, userDataX, tokenDataX);
+
+        // if mintAndStake flag is set, we need to make sure that next tokenData is set
+        // because tokenData in this case is implicit and needs to carry over
+        if (tokenData.mintAndStaked) {
+            unchecked {
+                if (
+                    !tokenData.nextTokenDataSet &&
+                    _tokenData[tokenId + 1].owner == address(0) &&
+                    _exists(tokenId)
+                ) _tokenData[tokenId] = tokenData;
+
+                tokenData.nextTokenDataSet = true;
+                tokenData.mintAndStaked = false;
+            }
+        }
 
         tokenData.staked = false;
-        tokenData.stakeStart = uint40(0);
-
         _tokenData[tokenId] = tokenData;
 
         emit Transfer(address(this), to, tokenId);
 
         userData.balance--;
         userData.numStaked--;
+        userData.stakeStart = uint40(block.timestamp);
 
         return userData;
     }
 
     /* ------------- Internal ------------- */
 
-    function _mint(address to, uint256 quantity) internal {
+    function _mintAndStake(
+        address to,
+        uint256 quantity,
+        bool stake_
+    ) internal {
         unchecked {
             uint256 supply = totalSupply;
             uint256 startTokenId = startingIndex + supply;
@@ -197,16 +214,38 @@ abstract contract ERC721MT {
             // if (quantity == 1) tokenData.nextTokenDataSet = true;
             TokenData memory tokenData = TokenData(
                 to,
-                uint40(0),
-                uint40(0),
-                false,
-                false,
-                0
+                uint40(block.timestamp),
+                1,
+                stake_,
+                stake_,
+                quantity == 1
             );
 
-            userData.balance += uint40(quantity);
-            for (uint256 i; i < quantity; ++i)
-                emit Transfer(address(0), to, startTokenId + i);
+            if (stake_) {
+                uint256 numStaked_ = userData.numStaked;
+
+                userData = claimReward(userData);
+                userData.numStaked += uint40(quantity);
+
+                if (numStaked_ + quantity > stakingLimit)
+                    revert ExceedsStakingLimit();
+                if (numStaked_ == 0)
+                    userData.stakeStart = uint40(block.timestamp);
+
+                uint256 tokenId;
+                for (uint256 i; i < quantity; ++i) {
+                    tokenId = startTokenId + i;
+
+                    // (userData, tokenData) = _beforeStakeDataTransform(tokenId, userData, tokenData);
+
+                    emit Transfer(address(0), to, tokenId);
+                    emit Transfer(to, address(this), tokenId);
+                }
+            } else {
+                userData.balance += uint40(quantity);
+                for (uint256 i; i < quantity; ++i)
+                    emit Transfer(address(0), to, startTokenId + i);
+            }
 
             _userData[to] = userData;
             _tokenData[startTokenId] = tokenData;
@@ -215,7 +254,7 @@ abstract contract ERC721MT {
         }
     }
 
-    /* function _claimReward() internal returns (UserData memory) {
+    function _claimReward() internal returns (UserData memory) {
         UserData memory userData = _userData[msg.sender];
         return claimReward(userData);
     }
@@ -231,7 +270,7 @@ abstract contract ERC721MT {
         _payoutReward(msg.sender, reward);
 
         return userData;
-    } */
+    }
 
     // public in case other contracts want to check some of the data on-chain
     function _tokenDataOf(uint256 tokenId)
@@ -257,14 +296,10 @@ abstract contract ERC721MT {
         address to,
         uint256 tokenId
     ) public {
-        // make sure no one is misled by token transfer event
-        // MAKE SURE THIS DOESN'T UPDATE THE WRONG DATA OR ALLOW SOMEONE THAT ISN'T THE OWNER TO MANIPULATE THE DATA
+        // make sure no one is misled by token transfer events
         if (to == address(this)) {
-            _userData[msg.sender] = _stake(
-                msg.sender,
-                tokenId,
-                _userData[msg.sender]
-            );
+            UserData memory userData = _claimReward();
+            _userData[msg.sender] = _stake(msg.sender, tokenId, userData);
         } else {
             TokenData memory tokenData = _tokenDataOf(tokenId);
             address owner = tokenData.owner;
@@ -289,6 +324,8 @@ abstract contract ERC721MT {
 
                 tokenData.nextTokenDataSet = true;
                 tokenData.owner = to;
+                tokenData.lastTransfer = uint40(block.timestamp);
+                tokenData.ownerCount++;
 
                 _tokenData[tokenId] = tokenData;
             }
