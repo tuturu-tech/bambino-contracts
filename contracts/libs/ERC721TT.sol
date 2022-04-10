@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
+import "../IBambinoBox.sol";
+
+import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
+
 error IncorrectOwner();
 error NonexistentToken();
 error QueryForZeroAddress();
 
+error TokenIdStaked();
 error TokenIdUnstaked();
 error ExceedsStakingLimit();
 
@@ -14,6 +20,7 @@ error MintMaxSupplyReached();
 error MintMaxWalletReached();
 
 error CallerNotOwnerNorApproved();
+error CallerNotOwner();
 
 error ApprovalToCaller();
 error ApproveToCurrentOwner();
@@ -22,7 +29,19 @@ error TransferFromIncorrectOwner();
 error TransferToNonERC721ReceiverImplementer();
 error TransferToZeroAddress();
 
+error InvalidType();
+
+error NoRewardWon();
+error RewardAlreadyClaimed();
+error InvalidCycle();
+error InvalidRewardSeed();
+
 abstract contract ERC721MT {
+    using Address for address;
+    using Strings for uint256;
+
+    IBambinoBox bambinoBox;
+
     event Transfer(
         address indexed from,
         address indexed to,
@@ -41,11 +60,10 @@ abstract contract ERC721MT {
 
     struct TokenData {
         address owner;
-        uint40 stakeStart;
-        uint40 lastRewarded;
         bool staked;
         bool nextTokenDataSet;
-        uint256 drawsAvailable;
+        uint256[] stakeStart;
+        uint256[] rewarded;
     }
 
     struct UserData {
@@ -63,6 +81,8 @@ abstract contract ERC721MT {
 
     uint256 public totalSupply;
     uint256 public cycleLength;
+    uint256 public currentCycle;
+    uint256[] bitmapDefault = [2**256 - 1, 2**256 - 1, 2**256 - 1]; // around 30 years worth of cycles
 
     uint256 immutable startingIndex;
     uint256 immutable collectionSize;
@@ -73,6 +93,8 @@ abstract contract ERC721MT {
 
     mapping(uint256 => TokenData) internal _tokenData;
     mapping(address => UserData) internal _userData;
+    mapping(uint256 => uint256) internal cycleStartsAt;
+    mapping(uint256 => uint256) internal cycleSeed;
 
     constructor(
         string memory name_,
@@ -80,7 +102,8 @@ abstract contract ERC721MT {
         uint256 startingIndex_,
         uint256 collectionSize_,
         uint256 maxPerWallet_,
-        uint256 cycleLength_
+        uint256 cycleLength_,
+        address bambinoBox_
     ) {
         name = name_;
         symbol = symbol_;
@@ -88,6 +111,7 @@ abstract contract ERC721MT {
         maxPerWallet = maxPerWallet_;
         startingIndex = startingIndex_;
         cycleLength = cycleLength_;
+        bambinoBox = IBambinoBox(bambinoBox_);
     }
 
     /* ------------- External ------------- */
@@ -122,11 +146,21 @@ abstract contract ERC721MT {
         if (userData.numStaked >= stakingLimit) revert ExceedsStakingLimit();
         if (tokenData.owner != from || tokenData.staked)
             revert IncorrectOwner();
+        if (tokenData.staked == true) revert TokenIdStaked();
+        if (getBitmapSlot(currentCycle, tokenId, 0) == 0)
+            revert TokenIdStaked();
 
         delete getApproved[tokenId];
+        (uint256 index, uint256 slot, uint256 bitmap, ) = getBitmapInfo(
+            currentCycle,
+            tokenId
+        );
+
+        if ((bitmap >> slot) & uint256(1) == 1) revert TokenIdStaked();
+        uint256 bitmask = ~uint256(1 << slot);
 
         tokenData.staked = true;
-        tokenData.stakeStart = uint40(block.timestamp);
+        tokenData.stakeStart[index] = bitmap & bitmask;
 
         unchecked {
             userData.balance--;
@@ -157,8 +191,15 @@ abstract contract ERC721MT {
             // Mint a 
         } */
 
+        (uint256 index, uint256 slot, uint256 bitmap, ) = getBitmapInfo(
+            currentCycle,
+            tokenId
+        );
+        if ((bitmap >> slot) & uint256(1) == 0) revert TokenIdUnstaked();
+        uint256 bitmask = uint256(1 << slot);
+
         tokenData.staked = false;
-        tokenData.stakeStart = uint40(0);
+        tokenData.stakeStart[index] = bitmap | bitmask;
 
         _tokenData[tokenId] = tokenData;
 
@@ -168,6 +209,30 @@ abstract contract ERC721MT {
         userData.numStaked--;
 
         return userData;
+    }
+
+    function _claimReward(uint256 _cycle, uint256 _tokenId) private {
+        uint256 rewardSeed = cycleSeed[_cycle];
+        TokenData memory tokenData = _tokenDataOf(_tokenId);
+        if (msg.sender != tokenData.owner) revert CallerNotOwner();
+        if (_cycle > currentCycle || _cycle < 0) revert InvalidCycle();
+        if (rewardSeed == 0) revert InvalidRewardSeed();
+
+        if ((uint256(keccak256(abi.encode(rewardSeed, _tokenId))) % 4) != 1)
+            revert NoRewardWon();
+
+        (uint256 index, uint256 slot, , uint256 bitmap) = getBitmapInfo(
+            _cycle,
+            _tokenId
+        );
+        if ((bitmap >> slot) & uint256(1) == 0) revert RewardAlreadyClaimed();
+        uint256 bitmask = ~uint256(1 << slot);
+        tokenData.rewarded[index] = bitmap & bitmask;
+
+        _tokenData[_tokenId] = tokenData;
+        _userData[msg.sender].numRewards += 1;
+
+        bambinoBox.mint(tokenData.owner, 1);
     }
 
     /* ------------- Internal ------------- */
@@ -197,11 +262,10 @@ abstract contract ERC721MT {
             // if (quantity == 1) tokenData.nextTokenDataSet = true;
             TokenData memory tokenData = TokenData(
                 to,
-                uint40(0),
-                uint40(0),
                 false,
-                false,
-                0
+                quantity == 1,
+                bitmapDefault,
+                bitmapDefault
             );
 
             userData.balance += uint40(quantity);
@@ -215,23 +279,50 @@ abstract contract ERC721MT {
         }
     }
 
-    /* function _claimReward() internal returns (UserData memory) {
-        UserData memory userData = _userData[msg.sender];
-        return claimReward(userData);
+    function getBitmapInfo(uint256 _cycle, uint256 _tokenId)
+        internal
+        view
+        returns (
+            uint256,
+            uint256,
+            uint256,
+            uint256
+        )
+    {
+        if (_cycle > currentCycle) revert InvalidCycle();
+        TokenData memory tokenData = _tokenDataOf(_tokenId);
+        uint256 index = _cycle / 256;
+        uint256 slot = _cycle % 256;
+        return (
+            index,
+            slot,
+            tokenData.stakeStart[index],
+            tokenData.rewarded[index]
+        );
     }
 
-    function claimReward(UserData memory userData)
-        private
-        returns (UserData memory)
-    {
-        uint256 reward = _pendingReward(msg.sender, userData);
-
-        userData.lastClaimed = uint40(block.timestamp);
-
-        _payoutReward(msg.sender, reward);
-
-        return userData;
-    } */
+    function getBitmapSlot(
+        uint256 _cycle,
+        uint256 _tokenId,
+        uint256 _type
+    ) internal view returns (uint256) {
+        if (_cycle > currentCycle) revert InvalidCycle();
+        (
+            ,
+            uint256 slot,
+            uint256 stakedBitmap,
+            uint256 rewardedBitmap
+        ) = getBitmapInfo(_cycle, _tokenId);
+        uint256 result;
+        if (_type == 0) {
+            result = (stakedBitmap >> slot) & uint256(1);
+        } else if (_type == 1) {
+            result = (rewardedBitmap >> slot) & uint256(1);
+        } else {
+            revert InvalidType();
+        }
+        return result;
+    }
 
     // public in case other contracts want to check some of the data on-chain
     function _tokenDataOf(uint256 tokenId)
@@ -241,6 +332,7 @@ abstract contract ERC721MT {
     {
         if (!_exists(tokenId)) revert NonexistentToken();
 
+        // Why is this a loop?
         for (uint256 curr = tokenId; ; curr--) {
             tokenData = _tokenData[curr];
             if (tokenData.owner != address(0)) return tokenData;
@@ -281,15 +373,7 @@ abstract contract ERC721MT {
             delete getApproved[tokenId];
 
             unchecked {
-                if (
-                    !tokenData.nextTokenDataSet &&
-                    _tokenData[tokenId + 1].owner == address(0) &&
-                    _exists(tokenId)
-                ) _tokenData[tokenId] = tokenData;
-
-                tokenData.nextTokenDataSet = true;
                 tokenData.owner = to;
-
                 _tokenData[tokenId] = tokenData;
             }
 
@@ -318,19 +402,19 @@ abstract contract ERC721MT {
         return (userData, tokenData);
     }
 
-    function _pendingReward(address, UserData memory userData)
+    /* function _pendingReward(address, UserData memory userData)
         internal
         view
         virtual
         returns (uint256);
 
-    function _payoutReward(address user, uint256 reward) internal virtual;
+    function _payoutReward(address user, uint256 reward) internal virtual; */
 
     /* ------------- View ------------- */
 
     function ownerOf(uint256 tokenId) external view returns (address) {
         TokenData memory tokenData = _tokenDataOf(tokenId);
-        return tokenData.staked ? tokenData.owner : address(this);
+        return tokenData.staked ? address(this) : tokenData.owner;
     }
 
     function trueOwnerOf(uint256 tokenId) external view returns (address) {
@@ -355,12 +439,40 @@ abstract contract ERC721MT {
         return _userData[user].numMinted;
     }
 
-    function pendingReward(address user) external view returns (uint256) {
-        return _pendingReward(user, _userData[user]);
+    function rewardEarned(uint256 cycle, uint256 tokenId)
+        external
+        view
+        returns (bool)
+    {
+        if (cycle > currentCycle) revert InvalidCycle();
+        uint256 rewardSeed = cycleSeed[cycle];
+        if (rewardSeed == 0) revert InvalidRewardSeed();
+
+        if ((uint256(keccak256(abi.encode(rewardSeed, tokenId))) % 4) != 1) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    function rewardClaimed(uint256 cycle, uint256 tokenId)
+        external
+        view
+        returns (bool)
+    {
+        if (cycle > currentCycle) revert InvalidCycle();
+        (, uint256 slot, , uint256 bitmap) = getBitmapInfo(cycle, tokenId);
+        if ((bitmap >> slot) & uint256(1) == 0) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     // O(N) read-only functions
-
+    // type 0 -> Balance in the users wallet
+    // type 1 -> The amount of tokens staked
+    // type 2 -> wallet balance + staked tokens balance
     function tokenIdsOf(address user, uint256 type_)
         external
         view

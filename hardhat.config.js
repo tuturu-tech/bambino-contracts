@@ -1,5 +1,6 @@
 require("@nomiclabs/hardhat-waffle");
 require("solidity-coverage");
+require("hardhat-contract-sizer");
 //require("hardhat-gas-reporter");
 require("dotenv").config();
 
@@ -61,7 +62,7 @@ module.exports = {
     },
   },
   solidity: {
-    version: "0.8.4",
+    version: "0.8.7",
     settings: {
       optimizer: {
         enabled: true,
@@ -76,7 +77,7 @@ module.exports = {
     artifacts: "./artifacts",
   },
   mocha: {
-    timeout: 20000,
+    timeout: 100000,
   },
   gasReporter: {
     coinmarketcap: "7c6dba17-dc6a-42db-996b-9587eaffc8e8",

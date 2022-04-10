@@ -23,7 +23,7 @@ const signWhitelist = async (
   );
 };
 
-describe.only("Deploy", function () {
+describe("Deploy", function () {
   let nfta, owner, addr1, addr2;
 
   beforeEach(async function () {

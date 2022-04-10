@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
+
+import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
+
 error IncorrectOwner();
 error NonexistentToken();
 error QueryForZeroAddress();
@@ -23,6 +30,9 @@ error TransferToNonERC721ReceiverImplementer();
 error TransferToZeroAddress();
 
 abstract contract ERC721M {
+    using Address for address;
+    using Strings for uint256;
+
     event Transfer(
         address indexed from,
         address indexed to,
@@ -510,13 +520,4 @@ abstract contract ERC721M {
             IERC721Receiver(to).onERC721Received.selector
         ) revert TransferToNonERC721ReceiverImplementer();
     }
-}
-
-interface IERC721Receiver {
-    function onERC721Received(
-        address operator,
-        address from,
-        uint256 id,
-        bytes calldata data
-    ) external returns (bytes4);
 }
