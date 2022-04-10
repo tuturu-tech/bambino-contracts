@@ -31,6 +31,7 @@ error TransferToZeroAddress();
 
 error InvalidType();
 
+error NotStakedForFullCycle();
 error NoRewardWon();
 error RewardAlreadyClaimed();
 error InvalidCycle();
@@ -60,6 +61,7 @@ abstract contract ERC721MT {
 
     struct TokenData {
         address owner;
+        uint40 lastRewardClaimed;
         bool staked;
         bool nextTokenDataSet;
         uint256[] stakeStart;
@@ -130,12 +132,23 @@ abstract contract ERC721MT {
         _userData[msg.sender] = userData;
     }
 
-    /* function claimReward() external payable {
-        _userData[msg.sender] = _claimReward();
-    } */
+    function claimRewards(uint256 tokenId) external payable {
+        TokenData memory tokenData = _tokenDataOf(tokenId);
+        for (
+            uint256 i = tokenData.lastRewardClaimed + 1;
+            i <= currentCycle;
+            i++
+        ) {
+            if (_rewardEarned(i, tokenId) && !_rewardClaimed(i, tokenId)) {
+                _claimReward(i, tokenId);
+            }
+        }
+        _tokenData[tokenId].lastRewardClaimed = uint40(currentCycle);
+    }
 
     /* ------------- Private ------------- */
 
+    //
     function _stake(
         address from,
         uint256 tokenId,
@@ -147,11 +160,9 @@ abstract contract ERC721MT {
         if (tokenData.owner != from || tokenData.staked)
             revert IncorrectOwner();
         if (tokenData.staked == true) revert TokenIdStaked();
-        if (getBitmapSlot(currentCycle, tokenId, 0) == 0)
-            revert TokenIdStaked();
 
         delete getApproved[tokenId];
-        (uint256 index, uint256 slot, uint256 bitmap, ) = getBitmapInfo(
+        (uint256 index, uint256 slot, uint256 bitmap, ) = _getBitmapInfo(
             currentCycle,
             tokenId
         );
@@ -174,25 +185,22 @@ abstract contract ERC721MT {
         return userData;
     }
 
+    // WORK IN PROGRESS
+    // Currently this would block people from unstaking if they staked during one of the previous cycles, and it doesn't update the correct cycle anyway
+    // Needs to be changed so it only checks if a token is currently staked and then if stakedBitmap slot is 1, stay at 1, if it's 0, switch it to 1
     function _unstake(
         address to,
         uint256 tokenId,
         UserData memory userData
     ) private returns (UserData memory) {
         TokenData memory tokenData = _tokenDataOf(tokenId);
+        uint256 cycle = currentCycle - 1;
 
         if (tokenData.owner != to) revert IncorrectOwner();
         if (!tokenData.staked) revert TokenIdUnstaked();
 
-        // I can check reward conditions and draws in a function
-        /* uint256 stakedDelta = block.timestamp - tokenData.stakeStart;
-        uint256 rewardedDelta = block.timestamp - tokenData.lastRewarded;
-        if (stakedDelta / cycleLength > 3 && rewardedDelta < cycleLength * 3 ) {
-            // Mint a 
-        } */
-
-        (uint256 index, uint256 slot, uint256 bitmap, ) = getBitmapInfo(
-            currentCycle,
+        (uint256 index, uint256 slot, uint256 bitmap, ) = _getBitmapInfo(
+            cycle,
             tokenId
         );
         if ((bitmap >> slot) & uint256(1) == 0) revert TokenIdUnstaked();
@@ -215,19 +223,22 @@ abstract contract ERC721MT {
         uint256 rewardSeed = cycleSeed[_cycle];
         TokenData memory tokenData = _tokenDataOf(_tokenId);
         if (msg.sender != tokenData.owner) revert CallerNotOwner();
-        if (_cycle > currentCycle || _cycle < 0) revert InvalidCycle();
+        if (_cycle > currentCycle || _cycle <= 0) revert InvalidCycle();
         if (rewardSeed == 0) revert InvalidRewardSeed();
 
         if ((uint256(keccak256(abi.encode(rewardSeed, _tokenId))) % 4) != 1)
             revert NoRewardWon();
 
-        (uint256 index, uint256 slot, , uint256 bitmap) = getBitmapInfo(
+        (uint256 index, uint256 slot, , uint256 rewardBitmap) = _getBitmapInfo(
             _cycle,
             _tokenId
         );
-        if ((bitmap >> slot) & uint256(1) == 0) revert RewardAlreadyClaimed();
+        if (_getBitmapSlot(_cycle - 1, _tokenId, 0) == 1)
+            revert NotStakedForFullCycle();
+        if ((rewardBitmap >> slot) & uint256(1) == 0)
+            revert RewardAlreadyClaimed();
         uint256 bitmask = ~uint256(1 << slot);
-        tokenData.rewarded[index] = bitmap & bitmask;
+        tokenData.rewarded[index] = rewardBitmap & bitmask;
 
         _tokenData[_tokenId] = tokenData;
         _userData[msg.sender].numRewards += 1;
@@ -262,6 +273,7 @@ abstract contract ERC721MT {
             // if (quantity == 1) tokenData.nextTokenDataSet = true;
             TokenData memory tokenData = TokenData(
                 to,
+                0,
                 false,
                 quantity == 1,
                 bitmapDefault,
@@ -279,7 +291,7 @@ abstract contract ERC721MT {
         }
     }
 
-    function getBitmapInfo(uint256 _cycle, uint256 _tokenId)
+    function _getBitmapInfo(uint256 _cycle, uint256 _tokenId)
         internal
         view
         returns (
@@ -301,7 +313,7 @@ abstract contract ERC721MT {
         );
     }
 
-    function getBitmapSlot(
+    function _getBitmapSlot(
         uint256 _cycle,
         uint256 _tokenId,
         uint256 _type
@@ -312,7 +324,7 @@ abstract contract ERC721MT {
             uint256 slot,
             uint256 stakedBitmap,
             uint256 rewardedBitmap
-        ) = getBitmapInfo(_cycle, _tokenId);
+        ) = _getBitmapInfo(_cycle, _tokenId);
         uint256 result;
         if (_type == 0) {
             result = (stakedBitmap >> slot) & uint256(1);
@@ -342,6 +354,36 @@ abstract contract ERC721MT {
     function _exists(uint256 tokenId) internal view returns (bool) {
         return
             startingIndex <= tokenId && tokenId < startingIndex + totalSupply;
+    }
+
+    function _rewardEarned(uint256 cycle, uint256 tokenId)
+        internal
+        view
+        returns (bool)
+    {
+        if (cycle > currentCycle || cycle <= 1) revert InvalidCycle();
+        uint256 rewardSeed = cycleSeed[cycle];
+        if (rewardSeed == 0) revert InvalidRewardSeed();
+
+        if ((uint256(keccak256(abi.encode(rewardSeed, tokenId))) % 4) != 1) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    function _rewardClaimed(uint256 cycle, uint256 tokenId)
+        internal
+        view
+        returns (bool)
+    {
+        if (cycle > currentCycle) revert InvalidCycle();
+        (, uint256 slot, , uint256 bitmap) = _getBitmapInfo(cycle, tokenId);
+        if ((bitmap >> slot) & uint256(1) == 0) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     function transferFrom(
@@ -444,15 +486,7 @@ abstract contract ERC721MT {
         view
         returns (bool)
     {
-        if (cycle > currentCycle) revert InvalidCycle();
-        uint256 rewardSeed = cycleSeed[cycle];
-        if (rewardSeed == 0) revert InvalidRewardSeed();
-
-        if ((uint256(keccak256(abi.encode(rewardSeed, tokenId))) % 4) != 1) {
-            return false;
-        } else {
-            return true;
-        }
+        return _rewardEarned(cycle, tokenId);
     }
 
     function rewardClaimed(uint256 cycle, uint256 tokenId)
@@ -460,13 +494,7 @@ abstract contract ERC721MT {
         view
         returns (bool)
     {
-        if (cycle > currentCycle) revert InvalidCycle();
-        (, uint256 slot, , uint256 bitmap) = getBitmapInfo(cycle, tokenId);
-        if ((bitmap >> slot) & uint256(1) == 0) {
-            return true;
-        } else {
-            return false;
-        }
+        return _rewardClaimed(cycle, tokenId);
     }
 
     // O(N) read-only functions
