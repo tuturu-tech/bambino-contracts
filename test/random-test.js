@@ -5,7 +5,7 @@ const getRand = (max) => {
   return Math.floor(Math.random() * max);
 };
 
-describe.only("Deploy", function () {
+describe("Deploy", function () {
   let nfta, owner, addr1, addr2;
 
   beforeEach(async function () {

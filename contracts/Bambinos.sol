@@ -9,7 +9,12 @@ import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 import "./libs/ERC721T.sol";
 import "./IVial.sol";
 
-contract Bambinos is ERC721T, Ownable, ReentrancyGuard, VRFConsumerBaseV2 {
+contract BillionaireBambinos is
+    ERC721T,
+    Ownable,
+    ReentrancyGuard,
+    VRFConsumerBaseV2
+{
     using Address for address;
     using Strings for uint256;
 
@@ -105,6 +110,11 @@ contract Bambinos is ERC721T, Ownable, ReentrancyGuard, VRFConsumerBaseV2 {
         uint256[] memory randomWords
     ) internal override {
         cycleSeed[currentCycle] = randomWords[0];
+    }
+
+    // THIS IS A TESTING FUNCTION ONLY; REMOVE IN PRODUCTION
+    function setCycleSeed(uint256 cycle, uint256 seed) external onlyOwner {
+        cycleSeed[cycle] = seed;
     }
 
     function airdrop(address to, uint256 quantity) external onlyOwner {

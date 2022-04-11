@@ -23,19 +23,35 @@ const signWhitelist = async (
   );
 };
 
-describe("Deploy", function () {
+describe.only("Deploy", function () {
   let nfta, owner, addr1, addr2;
 
   beforeEach(async function () {
     [owner, addr1, addr2] = await ethers.getSigners();
 
-    const NFTA = await ethers.getContractFactory("BabyBoss");
-    nfta = await NFTA.deploy(owner.address, 1000);
-    await nfta.deployed();
+    const VIAL = await ethers.getContractFactory("Vial");
+    vial = await VIAL.deploy("ipfs://vial/");
+    await vial.deployed();
+
+    const BOX = await ethers.getContractFactory("BambinoBox");
+    box = await BOX.deploy("ipfs://box/", owner.address);
+    await box.deployed();
+
+    const BAMBINO = await ethers.getContractFactory("BillionaireBambinos");
+    bambino = await BAMBINO.deploy(box.address, vial.address, 1234);
+    await bambino.deployed();
   });
 
-  it("Should set correct owner", async function () {
-    expect(await nfta.owner()).to.equal(owner.address);
+  it.only("Should set correct owner", async function () {
+    expect(await vial.owner()).to.equal(owner.address);
+    expect(await box.owner()).to.equal(owner.address);
+    expect(await bambino.owner()).to.equal(owner.address);
+  });
+
+  it("Should restrict functions to owner", async function () {
+    await expect(
+      vial.connect(addr1).airdrop(addr1.address, 5)
+    ).to.be.revertedWith("something");
   });
 
   it("Should mint correctly", async function () {

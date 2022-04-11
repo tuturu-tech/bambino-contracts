@@ -7,8 +7,8 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./libs/ERC1155D.sol";
 
 contract Vial is ERC1155, Ownable, ReentrancyGuard {
-    uint256 public maxSupply = 1000; // test
-    uint256 public price = 0.1 ether; // test
+    uint256 public maxSupply = 100; // test
+    uint256 public price = 0.001 ether; // test
     uint256 public maxMint = 10; // test
     uint256 public counter = 1;
     address public withdrawalAddress;
