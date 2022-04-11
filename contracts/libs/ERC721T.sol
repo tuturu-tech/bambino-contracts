@@ -81,9 +81,7 @@ abstract contract ERC721T {
     mapping(address => mapping(address => bool)) public isApprovedForAll;
 
     uint256 public totalSupply;
-    uint256 public cycleLength;
     uint256 public currentCycle;
-    uint256[] bitmapDefault = [2**256 - 1, 2**256 - 1, 2**256 - 1]; // around 30 years worth of cycles
 
     uint256 immutable startingIndex;
     uint256 immutable collectionSize;
@@ -103,7 +101,6 @@ abstract contract ERC721T {
         uint256 startingIndex_,
         uint256 collectionSize_,
         uint256 maxPerWallet_,
-        uint256 cycleLength_,
         address bambinoBox_
     ) {
         name = name_;
@@ -111,7 +108,6 @@ abstract contract ERC721T {
         collectionSize = collectionSize_;
         maxPerWallet = maxPerWallet_;
         startingIndex = startingIndex_;
-        cycleLength = cycleLength_;
         bambinoBox = IBambinoBox(bambinoBox_);
     }
 
@@ -153,7 +149,19 @@ abstract contract ERC721T {
         tokenData.staked = true;
         tokenData.stakedAt = uint40(block.timestamp);
 
+        uint256 nextTokenId = tokenId + 1;
+        TokenData memory nextTokenData = _tokenData[nextTokenId];
+
         unchecked {
+            if (
+                !tokenData.nextTokenDataSet &&
+                nextTokenData.owner == address(0) &&
+                _exists(nextTokenId)
+            ) {
+                tokenData.nextTokenDataSet = true;
+                nextTokenData.owner = from;
+                _tokenData[nextTokenId] = nextTokenData;
+            }
             userData.balance--;
             userData.numStaked++;
         }
@@ -360,8 +368,22 @@ abstract contract ERC721T {
 
             delete getApproved[tokenId];
 
+            uint256 nextTokenId = tokenId + 1;
+            TokenData memory nextTokenData = _tokenData[nextTokenId];
+
             unchecked {
+                if (
+                    !tokenData.nextTokenDataSet &&
+                    _tokenData[tokenId + 1].owner == address(0) &&
+                    _exists(tokenId)
+                ) {
+                    nextTokenData.owner = from;
+                    _tokenData[nextTokenId] = nextTokenData;
+                }
+
+                tokenData.nextTokenDataSet = true;
                 tokenData.owner = to;
+
                 _tokenData[tokenId] = tokenData;
             }
 

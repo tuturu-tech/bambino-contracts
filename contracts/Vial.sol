@@ -1,12 +1,12 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.7;
 
-import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract Vial is ERC1155, ERC1155Burnable, Ownable, ReentrancyGuard {
+import "./libs/ERC1155D.sol";
+
+contract Vial is ERC1155, Ownable, ReentrancyGuard {
     uint256 public maxSupply = 1000; // test
     uint256 public price = 0.1 ether; // test
     uint256 public maxMint = 10; // test
@@ -37,9 +37,11 @@ contract Vial is ERC1155, ERC1155Burnable, Ownable, ReentrancyGuard {
 
     // --------- RESTRICTED TO CONTRACT -----------
 
-    function burn(address _user, uint256 _tokenId) external nonReentrant {
+    function burn(address _user, uint256[] memory _tokenIds) external {
         require(msg.sender == BBContract, "NOT_AUTHORIZED");
-        _burn(_user, _tokenId, 1);
+        for (uint256 i; i < _tokenIds.length; i++) {
+            _burn(_user, _tokenIds[i], 1);
+        }
     }
 
     // --------- RESTRICTED -----------

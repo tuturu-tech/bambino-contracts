@@ -1,33 +1,28 @@
 //SDPX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
-import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
+import "./libs/ERC1155D.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract BambinoBox is ERC1155, ERC1155Burnable, Ownable, ReentrancyGuard {
-    uint256 public maxCirculatingSupply = 1500;
+contract BambinoBox is ERC1155, Ownable, ReentrancyGuard {
+    uint256 public immutable maxCirculatingSupply = 1500;
+
     uint256 public circulatingSupply;
     uint256 public burnedSupply;
-    uint256 public price = 0.1 ether; // test
-    uint256 public maxMint = 10; // test
     uint256 public counter = 1;
     address public withdrawalAddress;
     address public approvedMinter;
 
     bool public paused;
-    mapping(address => uint256) minted;
 
-    constructor(string memory _uri) ERC1155(_uri) {}
+    constructor(string memory _uri, address _withdrawal) ERC1155(_uri) {
+        withdrawalAddress = _withdrawal;
+    }
 
     // --------- RESTRICTED TO CONTRACT -----------
 
-    function mint(address _user, uint256 _quantity)
-        external
-        payable
-        nonReentrant
-    {
+    function mint(address _user, uint256 _quantity) external {
         require(msg.sender == approvedMinter, "NOT_AUTHORIZED");
         require(
             circulatingSupply + _quantity <= maxCirculatingSupply,
@@ -39,8 +34,7 @@ contract BambinoBox is ERC1155, ERC1155Burnable, Ownable, ReentrancyGuard {
         }
     }
 
-    function burn(uint256[] calldata _tokenIds) external nonReentrant {
-        // Do I need to check for ownership?
+    function burnForReward(uint256[] calldata _tokenIds) external nonReentrant {
         circulatingSupply -= _tokenIds.length;
         burnedSupply += _tokenIds.length;
         for (uint256 i; i < _tokenIds.length; i++) {
@@ -55,15 +49,17 @@ contract BambinoBox is ERC1155, ERC1155Burnable, Ownable, ReentrancyGuard {
             circulatingSupply + _quantity <= maxCirculatingSupply,
             "SUPPLY: MAX_REACHED"
         );
-        counter += _quantity;
-        _mint(_user, 1, _quantity, "");
+        circulatingSupply += _quantity;
+        for (uint256 i; i < _quantity; i++) {
+            _mint(_user, counter++, 1, "");
+        }
     }
 
     function togglePaused() external onlyOwner {
         paused = !paused;
     }
 
-    function setApprovedMinted(address _address) external onlyOwner {
+    function setApprovedMinter(address _address) external onlyOwner {
         approvedMinter = _address;
     }
 
