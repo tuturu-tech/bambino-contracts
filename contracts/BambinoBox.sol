@@ -1,4 +1,4 @@
-//SDPX-License-Identifier: MIT
+//SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
 
 import "./libs/ERC1155D.sol";
@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 contract BambinoBox is ERC1155, Ownable, ReentrancyGuard {
-    uint256 public immutable maxCirculatingSupply = 1500;
+    uint256 public maxCirculatingSupply = 1500;
 
     uint256 public circulatingSupply;
     uint256 public burnedSupply;
@@ -14,7 +14,7 @@ contract BambinoBox is ERC1155, Ownable, ReentrancyGuard {
     address public withdrawalAddress;
     address public approvedMinter;
 
-    bool public paused;
+    bool public paused = true;
 
     constructor(string memory _uri, address _withdrawal) ERC1155(_uri) {
         withdrawalAddress = _withdrawal;
@@ -23,6 +23,7 @@ contract BambinoBox is ERC1155, Ownable, ReentrancyGuard {
     // --------- RESTRICTED TO CONTRACT -----------
 
     function mint(address _user, uint256 _quantity) external {
+        require(!paused, "CONTRACT_PAUSED");
         require(msg.sender == approvedMinter, "NOT_AUTHORIZED");
         require(
             circulatingSupply + _quantity <= maxCirculatingSupply,
@@ -35,6 +36,8 @@ contract BambinoBox is ERC1155, Ownable, ReentrancyGuard {
     }
 
     function burnForReward(uint256[] calldata _tokenIds) external nonReentrant {
+        require(!paused, "CONTRACT_PAUSED");
+        require(msg.sender == tx.origin, "CALLER_IS_CONTRACT");
         circulatingSupply -= _tokenIds.length;
         burnedSupply += _tokenIds.length;
         for (uint256 i; i < _tokenIds.length; i++) {
@@ -53,6 +56,10 @@ contract BambinoBox is ERC1155, Ownable, ReentrancyGuard {
         for (uint256 i; i < _quantity; i++) {
             _mint(_user, counter++, 1, "");
         }
+    }
+
+    function setMaxCirculatingSupply(uint256 _supply) external onlyOwner {
+        maxCirculatingSupply = _supply;
     }
 
     function togglePaused() external onlyOwner {

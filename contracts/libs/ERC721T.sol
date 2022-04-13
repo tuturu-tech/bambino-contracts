@@ -149,11 +149,11 @@ abstract contract ERC721T {
         tokenData.staked = true;
         tokenData.stakedAt = uint40(block.timestamp);
 
-        uint256 nextTokenId = tokenId + 1;
-        TokenData memory nextTokenData = _tokenData[nextTokenId];
+        /* uint256 nextTokenId = tokenId + 1;
+        TokenData memory nextTokenData = _tokenData[nextTokenId]; */
 
         unchecked {
-            if (
+            /*  if (
                 !tokenData.nextTokenDataSet &&
                 nextTokenData.owner == address(0) &&
                 _exists(nextTokenId)
@@ -161,7 +161,7 @@ abstract contract ERC721T {
                 tokenData.nextTokenDataSet = true;
                 nextTokenData.owner = from;
                 _tokenData[nextTokenId] = nextTokenData;
-            }
+            } */
             userData.balance--;
             userData.numStaked++;
         }
@@ -296,10 +296,14 @@ abstract contract ERC721T {
     {
         if (!_exists(tokenId)) revert NonexistentToken();
 
-        // Why is this a loop?
         for (uint256 curr = tokenId; ; curr--) {
             tokenData = _tokenData[curr];
-            if (tokenData.owner != address(0)) return tokenData;
+            if (tokenData.owner != address(0)) {
+                if (tokenId == curr) return tokenData;
+                tokenData.staked = false;
+                tokenData.stakedAt = uint40(0);
+                return tokenData;
+            }
         }
     }
 
@@ -316,7 +320,10 @@ abstract contract ERC721T {
         TokenData memory tokenData = _tokenDataOf(tokenId);
         if (cycle > currentCycle || cycle == 0) revert InvalidCycle();
         if (!_exists(tokenId)) revert NonexistentToken();
-        if (cycleStartedAt[cycle] < tokenData.stakedAt) return false;
+        if (
+            cycleStartedAt[cycle] < tokenData.stakedAt ||
+            block.timestamp - cycleStartedAt[cycle] < 14 days
+        ) return false;
 
         uint256 seed = cycleSeed[cycle];
         if (uint256(keccak256(abi.encode(seed, tokenId))) % 4 == 1) {

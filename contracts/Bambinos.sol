@@ -18,11 +18,12 @@ contract BillionaireBambinos is
     using Address for address;
     using Strings for uint256;
 
-    uint256 revealTime;
-    uint256 cycleLength = 14 days;
-    string baseURI;
-    string unrevealedURI;
-    IVial vialContract;
+    uint256 public revealTime;
+    uint256 public cycleLength = 14 days;
+    string public baseURI;
+    string public unrevealedURI;
+    bool active;
+    IVial public vialContract;
 
     // VRF Setup
     VRFCoordinatorV2Interface COORDINATOR;
@@ -30,9 +31,9 @@ contract BillionaireBambinos is
     address vrfCoordinator = 0x6168499c0cFfCaCD319c818142124B7A15E857ab; // Rinkeby
     bytes32 keyHash =
         0xd89b2bf150e3b9e13446986e571fb9cab24b13cea0a43ea20a6049a85cc807cc; // Rinkeby
-    uint32 callbackGasLimit = 100000;
+    uint32 public callbackGasLimit = 100000;
     uint16 requestConfirmations = 3;
-    uint32 numWords = 1;
+    uint32 public numWords = 1;
     uint256 public s_requestId;
 
     constructor(
@@ -51,7 +52,8 @@ contract BillionaireBambinos is
     /* ------------- User API ------------- */
 
     function burnVialsForBambino(uint256[] memory vialIds) external {
-        vialContract.burn(msg.sender, vialIds);
+        require(active, "CONTRACT_PAUSED");
+        vialContract.burn(msg.sender, vialIds); // Will this revert if user doesn't own the vials?
         _mint(msg.sender, vialIds.length);
     }
 
@@ -117,9 +119,8 @@ contract BillionaireBambinos is
         cycleSeed[cycle] = seed;
     }
 
-    function airdrop(address to, uint256 quantity) external onlyOwner {
-        require(totalSupply + quantity <= collectionSize, "MINT_LIMIT_REACHED");
-        _mint(to, quantity);
+    function toggleActive() external onlyOwner {
+        active = !active;
     }
 
     function setBaseURI(string memory uri) external onlyOwner {

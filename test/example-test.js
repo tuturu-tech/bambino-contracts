@@ -23,7 +23,7 @@ const signWhitelist = async (
   );
 };
 
-describe.only("Deploy", function () {
+describe("Deploy", function () {
   let nfta, owner, addr1, addr2;
 
   beforeEach(async function () {
@@ -42,7 +42,7 @@ describe.only("Deploy", function () {
     await bambino.deployed();
   });
 
-  it.only("Should set correct owner", async function () {
+  it("Should set correct owner", async function () {
     expect(await vial.owner()).to.equal(owner.address);
     expect(await box.owner()).to.equal(owner.address);
     expect(await bambino.owner()).to.equal(owner.address);
