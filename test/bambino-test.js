@@ -305,11 +305,8 @@ describe.only("Deploy", function () {
     });
   });
 
-  describe.only("Billionaire Bambinos", function () {
+  describe("Billionaire Bambinos", function () {
     it("Should properly limit owner functions", async function () {
-      await expect(
-        bambino.connect(addr1).airdrop(addr1.address, 2)
-      ).to.be.revertedWith("Ownable: caller is not the owner");
       await expect(
         bambino.connect(addr1).setBaseURI("base")
       ).to.be.revertedWith("Ownable: caller is not the owner");
@@ -438,7 +435,7 @@ describe.only("Deploy", function () {
       ).to.be.revertedWith("TOO_SOON_TO_START_NEW_CYCLE");
     });
 
-    it.only("Should correctly stake", async function () {
+    it("Should correctly stake", async function () {
       vial.toggleSale();
       vial.mint(5, { value: vialPrice.mul(5) });
       vial.connect(addr1).mint(5, { value: vialPrice.mul(5) });
@@ -452,6 +449,55 @@ describe.only("Deploy", function () {
       expect(await bambino.ownerOf(1)).to.equal(bambino.address);
       expect(await bambino.ownerOf(2)).to.equal(owner.address);
       expect(await bambino.ownerOf(3)).to.equal(owner.address);
+    });
+
+    it.only("Should correctly stake and ustake", async function () {
+      let tokens1 = [1, 2, 3];
+      let tokens2 = [6, 7];
+      vial.toggleSale();
+      vial.mint(5, { value: vialPrice.mul(5) });
+      vial.connect(addr1).mint(3, { value: vialPrice.mul(3) });
+      vial.connect(addr1).mint(5, { value: vialPrice.mul(5) });
+      await expect(bambino.toggleActive()).to.not.be.reverted;
+      await expect(vial.setBBContract(bambino.address)).to.not.be.reverted;
+      await expect(bambino.burnVialsForBambino(tokens1)).to.not.be.reverted;
+      await expect(bambino.connect(addr1).burnVialsForBambino([6, 7, 8, 9, 10]))
+        .to.not.be.reverted;
+
+      await expect(bambino.stake(tokens1)).to.not.be.reverted;
+      await expect(bambino.connect(addr1).stake(tokens2)).to.not.be.reverted;
+      await expect(bambino.setCycleSeed(0, 100)).to.not.be.reverted;
+      await expect(
+        bambino.startNextCycle(Number(await getBlockTimestamp()) + 10)
+      ).to.not.be.reverted;
+
+      await advanceTime(time.delta14d);
+      await advanceTime(time.delta1m);
+      await expect(bambino.setCycleSeed(1, 12)).to.not.be.reverted;
+
+      await expect(
+        bambino.startNextCycle(Number(await getBlockTimestamp()) + 10)
+      ).to.not.be.reverted;
+      expect(await bambino.rewardEarned(1, 1)).to.equal(true);
+      expect(await bambino.rewardEarned(1, 2)).to.equal(false);
+      expect(await bambino.rewardEarned(1, 3)).to.equal(false);
+      expect(await bambino.rewardEarned(1, 6)).to.equal(false);
+      expect(await bambino.rewardEarned(1, 7)).to.equal(true);
+
+      await expect(box.setApprovedMinter(bambino.address)).to.not.be.reverted;
+      await expect(box.togglePaused()).to.not.be.reverted;
+
+      await expect(bambino.claimReward(1)).to.not.be.reverted;
+      expect(await bambino.rewardClaimed(1, 1)).to.equal(true);
+      expect(await box.balanceOf(owner.address, 1)).to.equal(1);
+      expect(await box.circulatingSupply()).to.equal(1);
+
+      await expect(bambino.unstake([6, 7])).to.be.revertedWith(
+        "CallerNotOwner()"
+      );
+      await expect(bambino.connect(addr1).unstake([6, 7])).to.not.be.reverted;
+      expect(await box.circulatingSupply()).to.equal(2);
+      expect(await box.balanceOf(addr1.address, 2)).to.equal(1);
     });
   });
 });

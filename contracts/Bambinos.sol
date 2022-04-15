@@ -90,7 +90,10 @@ contract BillionaireBambinos is
             block.timestamp > cycleStartedAt[currentCycle] + cycleLength,
             "TOO_SOON_TO_START_NEW_CYCLE"
         );
-        require(cycleSeed[currentCycle] != 0, "RANDOM_SEED_NOT_GENERATED");
+        require(
+            cycleSeed[currentCycle] != 0 || currentCycle == 0,
+            "RANDOM_SEED_NOT_GENERATED"
+        );
         require(timestamp >= block.timestamp, "START_TIME_TOO_SMALL");
         currentCycle += 1;
         cycleStartedAt[currentCycle] = timestamp;

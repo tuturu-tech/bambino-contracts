@@ -320,10 +320,8 @@ abstract contract ERC721T {
         TokenData memory tokenData = _tokenDataOf(tokenId);
         if (cycle > currentCycle || cycle == 0) revert InvalidCycle();
         if (!_exists(tokenId)) revert NonexistentToken();
-        if (
-            cycleStartedAt[cycle] < tokenData.stakedAt ||
-            block.timestamp - cycleStartedAt[cycle] < 14 days
-        ) return false;
+        if (cycleStartedAt[cycle] < tokenData.stakedAt || cycle == currentCycle)
+            return false;
 
         uint256 seed = cycleSeed[cycle];
         if (uint256(keccak256(abi.encode(seed, tokenId))) % 4 == 1) {
