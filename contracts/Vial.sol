@@ -44,6 +44,12 @@ contract Vial is ERC1155, Ownable, ReentrancyGuard {
         }
     }
 
+    // --------- VIEW -----------
+
+    function totalSupply() public view returns (uint256) {
+        return counter - 1;
+    }
+
     // --------- RESTRICTED -----------
 
     function airdrop(address _user, uint256 _quantity) external onlyOwner {
