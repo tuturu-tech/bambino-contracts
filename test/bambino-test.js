@@ -33,7 +33,7 @@ const signWhitelist = async (
 	);
 };
 
-describe.only("Deploy", function () {
+describe("Deploy", function () {
 	let nfta, owner, addr1, addr2;
 	let vialMaxSupply, vialPrice, vialMaxMint;
 
@@ -41,7 +41,7 @@ describe.only("Deploy", function () {
 		[owner, addr1, addr2] = await ethers.getSigners();
 
 		const VIAL = await ethers.getContractFactory("Vial");
-		vial = await VIAL.deploy("ipfs://vial/");
+		vial = await VIAL.deploy("ipfs://vial/", owner.address);
 		await vial.deployed();
 
 		const BOX = await ethers.getContractFactory("BambinoBox");
@@ -408,6 +408,7 @@ describe.only("Deploy", function () {
 			await expect(bambino.tokenURI(4)).to.be.revertedWith(
 				"ERC721Metadata: URI query for nonexistent token"
 			);
+			await expect(bambino.setBaseURI("")).to.not.be.reverted;
 			expect(await bambino.tokenURI(1)).to.equal("");
 			await expect(bambino.setUnrevealedURI("unrevealed")).to.not.be.reverted;
 			expect(await bambino.tokenURI(1)).to.equal("unrevealed");

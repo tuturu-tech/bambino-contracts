@@ -18,11 +18,9 @@ contract BillionaireBambinos is
     using Address for address;
     using Strings for uint256;
 
-    uint256 public revealTime;
     uint256 public cycleLength = 14 days;
     string public baseURI =
         "ipfs://QmRgJuozuryM1WyVBd6uexfvTYuSts9Puw2mHstQ6LeNWe/";
-    string public unrevealedURI;
     bool active;
     IVial public vialContract;
 
@@ -72,16 +70,10 @@ contract BillionaireBambinos is
             "ERC721Metadata: URI query for nonexistent token"
         );
 
-        if (block.timestamp >= revealTime) {
-            return
-                bytes(baseURI).length > 0
-                    ? string(
-                        abi.encodePacked(baseURI, tokenId.toString(), ".json")
-                    )
-                    : unrevealedURI;
-        } else {
-            return unrevealedURI;
-        }
+        return
+            bytes(baseURI).length > 0
+                ? string(abi.encodePacked(baseURI, tokenId.toString(), ".json"))
+                : "";
     }
 
     /* ------------- Restricted ------------- */
@@ -133,14 +125,6 @@ contract BillionaireBambinos is
 
     function setBaseURI(string memory uri) external onlyOwner {
         baseURI = uri;
-    }
-
-    function setUnrevealedURI(string memory uri) external onlyOwner {
-        unrevealedURI = uri;
-    }
-
-    function setRevealTime(uint256 reveal) external onlyOwner {
-        revealTime = reveal;
     }
 
     function setVialContract(address vial) external onlyOwner {

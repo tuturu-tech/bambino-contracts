@@ -1,0 +1,5 @@
+ERC721TTest:test_approvedContracts() (gas: 26439)
+ERC721TTest:test_stakeUnstake() (gas: 185689)
+ERC721TTest:test_stakeUnstakeMany() (gas: 567232)
+ERC721TTest:test_vialMint() (gas: 86226)
+ERC721TTest:test_vialMintTen() (gas: 333629)

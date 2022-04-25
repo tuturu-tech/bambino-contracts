@@ -1,0 +1,56 @@
+{
+  "abi": [],
+  "bytecode": {
+    "object": "0x6080604052348015600f57600080fd5b50603f80601d6000396000f3fe6080604052600080fdfea2646970667358221220d647788e62875942e8f748b4448f20fda1e2276ecb055cfdb4a5399d10aaf88064736f6c634300080d0033",
+    "sourceMap": "65:20:1:-:0;;;;;;;;;;;;;;;;;;;",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x6080604052600080fdfea2646970667358221220d647788e62875942e8f748b4448f20fda1e2276ecb055cfdb4a5399d10aaf88064736f6c634300080d0033",
+    "sourceMap": "65:20:1:-:0;;;;;",
+    "linkReferences": {}
+  },
+  "ast": {
+    "absolutePath": "/Users/elvisskozdopolj/Documents/Freelance/Templates/NFT/hello_foundry/src/Contract.sol",
+    "id": 1790,
+    "exportedSymbols": {
+      "Contract": [
+        1789
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "39:47:1",
+    "nodes": [
+      {
+        "id": 1788,
+        "nodeType": "PragmaDirective",
+        "src": "39:24:1",
+        "literals": [
+          "solidity",
+          "^",
+          "0.8",
+          ".13"
+        ]
+      },
+      {
+        "id": 1789,
+        "nodeType": "ContractDefinition",
+        "src": "65:20:1",
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "Contract",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          1789
+        ],
+        "name": "Contract",
+        "nameLocation": "74:8:1",
+        "scope": 1790,
+        "usedErrors": []
+      }
+    ],
+    "license": "UNLICENSED"
+  }
+}
