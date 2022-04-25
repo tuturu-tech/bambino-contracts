@@ -10,3 +10,6 @@
 [submodule "hello_foundry/lib/chainlink"]
 	path = hello_foundry/lib/chainlink
 	url = https://github.com/smartcontractkit/chainlink
+[submodule "hello_foundry/lib/solmate"]
+	path = hello_foundry/lib/solmate
+	url = https://github.com/rari-capital/solmate
